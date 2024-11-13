@@ -46,7 +46,7 @@ class LogoutSerializer(serializers.Serializer):
 class ProfileSerializer(serializers.ModelSerializer):
   class Meta:
     model = User
-    fields = ['id', 'email', 'name']
+    fields = ['id', 'email', 'name','role']
 
 
 
@@ -71,8 +71,8 @@ from rest_framework import serializers
 from .models import Job, Crew, CrewJobAssignment
 
 class JobSerializer(serializers.ModelSerializer):
-    #crews = serializers.PrimaryKeyRelatedField(queryset=Crew.objects.all(), many=True)
-    crews = CrewSerializer(source='crews.all', many=True)  # Use
+    crews = serializers.PrimaryKeyRelatedField(queryset=Crew.objects.all(), many=True)
+    #crews = CrewSerializer(source='crews.all', many=True)  # Use
     class Meta:
         model = Job
         fields = ['id', 'job_order_id', 'job_type', 'start_date', 'end_date', 'note', 'crews']

@@ -1,4 +1,16 @@
+from rest_framework.permissions import BasePermission
 
+class IsSiteEngineer(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.role == 'site_engineer'
+class IsSupervisor(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.role == 'supervisor'
+
+class IsSupervisorOrSiteEngineer(BasePermission):
+    def has_permission(self, request, view):
+        # Check if the user has either supervisor or site engineer role
+        return request.user.role in ['supervisor', 'site_engineer']
 
 # Create your views here.
 from django.shortcuts import render
@@ -26,7 +38,7 @@ def get_tokens_for_user(user):
         'access': str(refresh.access_token),
     }
 # Create your views here.
-class userregistration(APIView):
+"""class userregistration(APIView):
     
     def post(self, request, formate=None):
         serializer = RegistrationSerializer(data=request.data)
@@ -35,7 +47,48 @@ class userregistration(APIView):
             Tokens=get_tokens_for_user(user)
             return Response({'Tokens' :Tokens, 'role': user.role, 'msg': 'Registration successfull'}, status =status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+"""
+
+from django.template.loader import render_to_string
+from django.core.mail import EmailMultiAlternatives
+from django.conf import settings
+
+class userregistration(APIView):
     
+    def post(self, request, format=None):
+        serializer = RegistrationSerializer(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            user = serializer.save()
+            tokens = get_tokens_for_user(user)
+            password = request.data.get("password")  # Assuming password is provided in the request data
+            
+            # Render the HTML template for the email
+            subject = "Welcome to Our Platform!"
+            html_content = render_to_string('registration_email.html', {
+                'user': user,
+                'password': password
+            })
+            recipient_list = [user.email]
+            
+            # Create the email message with both HTML and plain text content
+            email = EmailMultiAlternatives(subject, "", settings.DEFAULT_FROM_EMAIL, recipient_list)
+            email.attach_alternative(html_content, "text/html")
+            
+            try:
+                email.send()
+                email_status = "Registration email sent successfully."
+            except Exception as e:
+                email_status = f"Failed to send registration email: {str(e)}"
+            
+            return Response({
+                'Tokens': tokens,
+                'role': user.role,
+                'msg': 'Registration successful',
+                'email_status': email_status
+            }, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     
 class userlogin(APIView):
     def post(self, request, formate=None):
@@ -50,9 +103,9 @@ class userlogin(APIView):
             else:
                 return Response({'msg': ['email or password is not valid']},status=status.HTTP_404_NOT_FOUND)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)     
-    
+
 class profileview(APIView):
-    Permission_classes = [IsAuthenticated]
+    permission_classes = [IsSupervisorOrSiteEngineer]
     def get(self,request,  formate=None):
         serializer = ProfileSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_201_CREATED) 
@@ -68,7 +121,7 @@ class userlogout(APIView):       #here we have to pass access token
         return Response(status=status.HTTP_204_NO_CONTENT)
     
 
-
+#-----------------------reset password---------------------------------------------
 
 @csrf_exempt
 @api_view(['POST'])
@@ -117,7 +170,7 @@ from .models import Crew
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated, IsSiteEngineer])
+@permission_classes([IsSupervisor])
 def crew_list_create(request):
     if request.method == 'GET':
         crews = Crew.objects.all()
@@ -132,7 +185,7 @@ def crew_list_create(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET', 'PUT', 'DELETE'])
-@permission_classes([IsAuthenticated, IsSiteEngineer])
+@permission_classes([IsSiteEngineer])
 def crew_detail_update_delete(request, crew_id):
     try:
         crew = Crew.objects.get(crew_id=crew_id)
@@ -165,7 +218,7 @@ from .models import Job, Crew, CrewJobAssignment
 from .serializers import JobSerializer
 
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated, IsSiteEngineer])
+@permission_classes([IsSupervisorOrSiteEngineer])
 def job_list_create(request):
     if request.method == 'GET':
         jobs = Job.objects.all()
@@ -193,7 +246,7 @@ def job_list_create(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET', 'PUT', 'DELETE'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsSiteEngineer])
 def job_detail_update_delete(request, id):
     try:
         job = Job.objects.get(id=id)
@@ -240,3 +293,4 @@ def get_daily_logs(request, job_id, crew_id=None):
 
     serializer = DailyLogSerializer(daily_logs, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+ 
